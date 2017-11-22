@@ -35,6 +35,12 @@ namespace libgp {
     /** Create and instance of GaussianProcess with given input dimensionality 
      *  and covariance function. */
     GaussianProcess (size_t input_dim, std::string covf_def);
+
+    /** Create and instance of the heterscedastic GaussianProcess with 
+	given input dimensionality and covariance function. */
+    GaussianProcess (size_t input_dim,
+		     std::string covf_def,  
+		     std::string covg_def );
     
     /** Create and instance of GaussianProcess from file. */
     GaussianProcess (const char * filename);
@@ -86,10 +92,12 @@ namespace libgp {
   protected:
     
     /** The covariance function of this Gaussian process. */
-    CovarianceFunction * cf;
+    CovarianceFunction* cf;
+    CovarianceFunction* cg;
     
     /** The training sample set. */
-    SampleSet * sampleset;
+    SampleSet* sampleset_f;
+    SampleSet* sampleset_g;
     
     /** Alpha is cached for performance. */ 
     Eigen::VectorXd alpha_f;
