@@ -32,7 +32,7 @@ namespace libgp {
     cf = factory.create(input_dim, covf_def);
     cf->loghyper_changed = 0;
     sampleset = new SampleSet(input_dim);
-    L.resize(initial_L_size, initial_L_size);
+    L_f.resize(initial_L_size, initial_L_size);
   }
   
   GaussianProcess::GaussianProcess (const char * filename) 
@@ -45,7 +45,7 @@ namespace libgp {
     infile.open(filename);
     std::string s;
     double * x = NULL;
-    L.resize(initial_L_size, initial_L_size);
+    L_f.resize(initial_L_size, initial_L_size);
     while (infile.good()) {
       getline(infile, s);
       // ignore empty lines and comments
@@ -87,10 +87,10 @@ namespace libgp {
   {
     this->input_dim = gp.input_dim;
     sampleset = new SampleSet(*(gp.sampleset));
-    alpha = gp.alpha;
-    k_star = gp.k_star;
+    alpha_f = gp.alpha_f;
+    k_star_f = gp.k_star_f;
     alpha_needs_update = gp.alpha_needs_update;
-    L = gp.L;
+    L_f = gp.L_f;
     
     // copy covariance function
     CovFactory factory;
@@ -113,7 +113,7 @@ namespace libgp {
     compute();
     update_alpha();
     update_k_star(x_star);
-    return k_star.dot(alpha);    
+    return k_star_f.dot(alpha_f);    
   }
   
   double GaussianProcess::var(const double x[])
@@ -124,7 +124,7 @@ namespace libgp {
     update_alpha();
     update_k_star(x_star);
     int n = sampleset->size();
-    Eigen::VectorXd v = L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(k_star);
+    Eigen::VectorXd v = L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(k_star_f);
     return cf->get(x_star, x_star) - v.dot(v);	
   }
 
@@ -135,24 +135,24 @@ namespace libgp {
     cf->loghyper_changed = false;
     int n = sampleset->size();
     // resize L if necessary
-    if (n > L.rows()) L.resize(n + initial_L_size, n + initial_L_size);
+    if (n > L_f.rows()) L_f.resize(n + initial_L_size, n + initial_L_size);
     // compute kernel matrix (lower triangle)
     for(size_t i = 0; i < sampleset->size(); ++i) {
       for(size_t j = 0; j <= i; ++j) {
-        L(i, j) = cf->get(sampleset->x(i), sampleset->x(j));
+        L_f(i, j) = cf->get(sampleset->x(i), sampleset->x(j));
       }
     }
     // perform cholesky factorization
     //solver.compute(K.selfadjointView<Eigen::Lower>());
-    L.topLeftCorner(n, n) = L.topLeftCorner(n, n).selfadjointView<Eigen::Lower>().llt().matrixL();
+    L_f.topLeftCorner(n, n) = L_f.topLeftCorner(n, n).selfadjointView<Eigen::Lower>().llt().matrixL();
     alpha_needs_update = true;
   }
   
   void GaussianProcess::update_k_star(const Eigen::VectorXd &x_star)
   {
-    k_star.resize(sampleset->size());
+    k_star_f.resize(sampleset->size());
     for(size_t i = 0; i < sampleset->size(); ++i) {
-      k_star(i) = cf->get(x_star, sampleset->x(i));
+      k_star_f(i) = cf->get(x_star, sampleset->x(i));
     }
   }
 
@@ -161,18 +161,18 @@ namespace libgp {
     // can previously computed values be used?
     if (!alpha_needs_update) return;
     alpha_needs_update = false;
-    alpha.resize(sampleset->size());
+    alpha_f.resize(sampleset->size());
     // Map target values to VectorXd
     const std::vector<double>& targets = sampleset->y();
     Eigen::Map<const Eigen::VectorXd> y(&targets[0], sampleset->size());
     int n = sampleset->size();
-    alpha = L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(y);
-    L.topLeftCorner(n, n).triangularView<Eigen::Lower>().adjoint().solveInPlace(alpha);
+    alpha_f = L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(y);
+    L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().adjoint().solveInPlace(alpha_f);
   }
   
   void GaussianProcess::add_pattern(const double x[], double y)
   {
-    //std::cout<< L.rows() << std::endl;
+    //std::cout<< L_f.rows() << std::endl;
 #if 0
     sampleset->add(x, y);
     cf->loghyper_changed = true;
@@ -184,7 +184,7 @@ namespace libgp {
     sampleset->add(x, y);
     // create kernel matrix if sampleset is empty
     if (n == 0) {
-      L(0,0) = sqrt(cf->get(sampleset->x(0), sampleset->x(0)));
+      L_f(0,0) = sqrt(cf->get(sampleset->x(0), sampleset->x(0)));
       cf->loghyper_changed = false;
     // recompute kernel matrix if necessary
     } else if (cf->loghyper_changed) {
@@ -196,13 +196,13 @@ namespace libgp {
         k(i) = cf->get(sampleset->x(i), sampleset->x(n));
       }
       double kappa = cf->get(sampleset->x(n), sampleset->x(n));
-      // resize L if necessary
-      if (sampleset->size() > static_cast<std::size_t>(L.rows())) {
-        L.conservativeResize(n + initial_L_size, n + initial_L_size);
+      // resize L_f if necessary
+      if (sampleset->size() > static_cast<std::size_t>(L_f.rows())) {
+        L_f.conservativeResize(n + initial_L_size, n + initial_L_size);
       }
-      L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(k);
-      L.block(n,0,1,n) = k.transpose();
-      L(n,n) = sqrt(kappa - k.dot(k));
+      L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(k);
+      L_f.block(n,0,1,n) = k.transpose();
+      L_f(n,n) = sqrt(kappa - k.dot(k));
     }
     alpha_needs_update = true;
 #endif
@@ -274,8 +274,8 @@ namespace libgp {
     int n = sampleset->size();
     const std::vector<double>& targets = sampleset->y();
     Eigen::Map<const Eigen::VectorXd> y(&targets[0], sampleset->size());
-    double det = 2 * L.diagonal().head(n).array().log().sum();
-    return -0.5*y.dot(alpha) - 0.5*det - 0.5*n*log2pi;
+    double det = 2 * L_f.diagonal().head(n).array().log().sum();
+    return -0.5*y.dot(alpha_f) - 0.5*det - 0.5*n*log2pi;
   }
 
   Eigen::VectorXd GaussianProcess::log_likelihood_gradient() 
@@ -288,10 +288,10 @@ namespace libgp {
     Eigen::MatrixXd W = Eigen::MatrixXd::Identity(n, n);
 
     // compute kernel matrix inverse
-    L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(W);
-    L.topLeftCorner(n, n).triangularView<Eigen::Lower>().transpose().solveInPlace(W);
+    L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(W);
+    L_f.topLeftCorner(n, n).triangularView<Eigen::Lower>().transpose().solveInPlace(W);
 
-    W = alpha * alpha.transpose() - W;
+    W = alpha_f * alpha_f.transpose() - W;
 
     for(size_t i = 0; i < n; ++i) {
       for(size_t j = 0; j <= i; ++j) {

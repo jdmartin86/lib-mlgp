@@ -92,14 +92,17 @@ namespace libgp {
     SampleSet * sampleset;
     
     /** Alpha is cached for performance. */ 
-    Eigen::VectorXd alpha;
+    Eigen::VectorXd alpha_f;
+    Eigen::VectorXd alpha_g;
     
     /** Last test kernel vector. */
-    Eigen::VectorXd k_star;
+    Eigen::VectorXd k_star_f;
+    Eigen::VectorXd k_star_g;
 
     /** Linear solver used to invert the covariance matrix. */
 //    Eigen::LLT<Eigen::MatrixXd> solver;
-    Eigen::MatrixXd L;
+    Eigen::MatrixXd L_f;
+    Eigen::MatrixXd L_g;
     
     /** Input vector dimensionality. */
     size_t input_dim;
