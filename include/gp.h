@@ -36,11 +36,11 @@ namespace libgp {
      *  and covariance function. */
     GaussianProcess (size_t input_dim, std::string covf_def);
 
-    /** Create and instance of the heterscedastic GaussianProcess with 
-	given input dimensionality and covariance function. */
-    GaussianProcess (size_t input_dim,
-		     std::string covf_def,  
-		     std::string covg_def );
+    /** Create and instance of GaussianProcess with given input dimensionality 
+     *  and covariance function. */
+    GaussianProcess (size_t input_dim, 
+		     std::string covf_def,
+		     std::string covh_def );
     
     /** Create and instance of GaussianProcess from file. */
     GaussianProcess (const char * filename);
@@ -57,6 +57,7 @@ namespace libgp {
      *  @param x input vector
      *  @return predicted value */
     virtual double f(const double x[]);
+    virtual double f(const Eigen::VectorXd& x_star );
     
     /** Predict variance of prediction for given input.
      *  @param x input vector
@@ -90,27 +91,24 @@ namespace libgp {
     Eigen::VectorXd log_likelihood_gradient();
 
   protected:
-    
+    /** The h-process for heteroscedastic Gaussian processes */
+    GaussianProcess* h;
+
     /** The covariance function of this Gaussian process. */
-    CovarianceFunction* cf;
-    CovarianceFunction* cg;
+    CovarianceFunction * cf;
     
     /** The training sample set. */
-    SampleSet* sampleset_f;
-    SampleSet* sampleset_g;
+    SampleSet * sampleset;
     
     /** Alpha is cached for performance. */ 
-    Eigen::VectorXd alpha_f;
-    Eigen::VectorXd alpha_g;
+    Eigen::VectorXd alpha;
     
     /** Last test kernel vector. */
-    Eigen::VectorXd k_star_f;
-    Eigen::VectorXd k_star_g;
+    Eigen::VectorXd k_star;
 
     /** Linear solver used to invert the covariance matrix. */
 //    Eigen::LLT<Eigen::MatrixXd> solver;
-    Eigen::MatrixXd L_f;
-    Eigen::MatrixXd L_g;
+    Eigen::MatrixXd L;
     
     /** Input vector dimensionality. */
     size_t input_dim;
