@@ -4,6 +4,7 @@
 
 #include "gp.h"
 #include "cov_factory.h"
+#include "cg.h"
 
 #include <iostream>
 #include <fstream>
@@ -12,22 +13,37 @@
 #include <iomanip>
 #include <ctime>
 
+#define SQ( x ) ( ( x ) * ( x ) )
+
 namespace libgp {
   
   const double log2pi = log(2*M_PI);
   const double initial_L_size = 1000;
+  const double num_var_samp = 100.0;
 
-  GaussianProcess::GaussianProcess ()
+  /**
+   * GaussianProcess
+   * 
+   * Create an empty instance of a heteroscedastic Gaussian process.
+   */
+  GaussianProcess::GaussianProcess( )
   {
-      sampleset = NULL;
-      cf = NULL;
-      h = NULL;
+    sampleset = NULL;
+    cf = NULL;
+    h = NULL;
   }
 
-  GaussianProcess::GaussianProcess (size_t input_dim, std::string covf_def)
+  /**
+   * GaussianProcess
+   * 
+   * Create an instance of a homoscedastic Gaussian process, grounded
+   * with a covariance definition.
+   */
+  GaussianProcess::GaussianProcess( size_t input_dim, std::string covf_def )
   {
     // set input dimensionality
     this->input_dim = input_dim;
+
     // create covariance function
     CovFactory factory;
     cf = factory.create(input_dim, covf_def);
@@ -37,25 +53,37 @@ namespace libgp {
     this->h = NULL;
   }
 
-  GaussianProcess::GaussianProcess (size_t input_dim, 
+  /**
+   * GaussianProcess
+   * 
+   * Create an instance of a heteroscedastic Gaussian process, grounded
+   * with a covariance definitions.
+   */
+  GaussianProcess::GaussianProcess( size_t input_dim, 
 				    std::string covf_def,
 				    std::string covh_def )
   {
     // set input dimensionality
     this->input_dim = input_dim;
+
     // create covariance function
     CovFactory factory;
     cf = factory.create(input_dim, covf_def);
     cf->loghyper_changed = 0;
     sampleset = new SampleSet(input_dim);
     L.resize(initial_L_size, initial_L_size);
+
+    // create the logarithmic noise process
     h = new GaussianProcess( input_dim , covh_def );
   }
   
   /**
-   * TODO: Enable support!
+   * GaussianProcess
+   * 
+   * Create an instance of a homoscedastic Gaussian process from 
+   * a file.
    */
-  GaussianProcess::GaussianProcess (const char * filename) 
+  GaussianProcess::GaussianProcess( const char* filename ) 
   {
     h = NULL;
     sampleset = NULL;
@@ -103,8 +131,13 @@ namespace libgp {
     }
     delete [] x;
   }
-  
-  GaussianProcess::GaussianProcess(const GaussianProcess& gp)
+
+  /**
+   * GaussianProcess
+   * 
+   * Copy an instance of a homoscedastic Gaussian process
+   */
+  GaussianProcess::GaussianProcess( const GaussianProcess& gp )
   {
     this->input_dim = gp.input_dim;
     sampleset = new SampleSet(*(gp.sampleset));
@@ -121,7 +154,12 @@ namespace libgp {
     cf->set_loghyper(gp.cf->get_loghyper());
   }
   
-  GaussianProcess::~GaussianProcess ()
+  /**
+   * ~GaussianProcess
+   * 
+   * Discard a Gaussian process class and free any allocated memory
+   */
+  GaussianProcess::~GaussianProcess( )
   {
     // free memory
     if(sampleset != NULL) delete sampleset;
@@ -129,25 +167,31 @@ namespace libgp {
     if( h != NULL ) delete h;
   }  
   
-  double GaussianProcess::f(const Eigen::VectorXd& x_star )
+  /**
+   * f
+   * 
+   * Compute the predictive mean value at test input x_star
+   */
+  double GaussianProcess::f( const Eigen::VectorXd& x_star )
   {
-    if (sampleset->empty()) return 0;
+    if( sampleset->empty() ) return 0.0;
+    if( h != NULL ) update_noise( );
     compute();
     update_alpha();
     update_k_star(x_star);
     return k_star.dot(alpha);    
   }
 
-  double GaussianProcess::f(const double x[])
+  double GaussianProcess::f( const double x[] )
   {
-    Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
+    Eigen::Map<const Eigen::VectorXd> x_star( x , input_dim );
     return f( x_star );    
   }
-  
-  double GaussianProcess::var(const double x[])
+
+  double GaussianProcess::var( const Eigen::VectorXd& x_star )
   {
     if (sampleset->empty()) return 0;
-    Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
+    if( h != NULL ) update_noise( );
     compute();
     update_alpha();
     update_k_star(x_star);
@@ -156,6 +200,18 @@ namespace libgp {
     return cf->get(x_star, x_star) - v.dot(v);	
   }
 
+  double GaussianProcess::var(const double x[])
+  {
+    Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
+    return var( x_star );	
+  }
+
+
+  /**
+   * compute
+   *
+   * Compute the Cholesky decomp
+   */
   void GaussianProcess::compute()
   {
     // can previously computed values be used?
@@ -198,43 +254,71 @@ namespace libgp {
     alpha = L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(y);
     L.topLeftCorner(n, n).triangularView<Eigen::Lower>().adjoint().solveInPlace(alpha);
   }
+
+  /**
+   * update_noise
+   * 
+   * Update the h-process data set with maximum likelihood predictions
+   */
+  void GaussianProcess::update_noise( )
+  {
+    if( !noise_needs_update ) return; 
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    double f_i = 0.0 , v_i = 0.0 , z_i = 0.0;
+
+    // TODO: test convergence
+    for( size_t k = 0 ; k < 10 ; k++ )
+    {
+      // update h-process dataset
+      for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
+      {
+	f_i = f( sampleset->x(i) );
+	v_i = var( sampleset->x(i) );
+      
+	std::normal_distribution<double> N( f_i , v_i );
+	z_i = 0.0;
+	for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
+	  z_i += 0.5 * SQ( sampleset->y(i) - N(gen) );
+	z_i = log( z_i / num_var_samp );
+	h->sampleset->set_y( i , z_i ); 
+      }
+    
+      // optimize f-process hyperparameters
+      CG cg;
+      cg.maximize( this , 50 , 0 );
+    }
+    noise_needs_update = false;
+  }
   
+  /**
+   * add_pattern
+   *
+   * Adds a sample to the training set and updates the h-process set
+   * when applicable.
+   */
   void GaussianProcess::add_pattern(const double x[], double y)
   {
-    //std::cout<< L.rows() << std::endl;
-#if 0
-    sampleset->add(x, y);
+    sampleset->add( x , y );
+
+    // add sample to h process
+    if( h != NULL )
+    {
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      double f_i = f( x );
+      double v_i = var( x );
+      std::normal_distribution<double> N( f_i , v_i );
+      double z_i = 0.0;
+      for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
+	z_i += 0.5 * SQ( y - N(gen) );
+      z_i = log( z_i / num_var_samp );
+      h->sampleset->add( x , z_i );
+      noise_needs_update = true;
+    }
+
     cf->loghyper_changed = true;
     alpha_needs_update = true;
-    cached_x_star = NULL;
-    return;
-#else
-    int n = sampleset->size();
-    sampleset->add(x, y);
-    // create kernel matrix if sampleset is empty
-    if (n == 0) {
-      L(0,0) = sqrt(cf->get(sampleset->x(0), sampleset->x(0)));
-      cf->loghyper_changed = false;
-    // recompute kernel matrix if necessary
-    } else if (cf->loghyper_changed) {
-      compute();
-    // update kernel matrix 
-    } else {
-      Eigen::VectorXd k(n);
-      for (int i = 0; i<n; ++i) {
-        k(i) = cf->get(sampleset->x(i), sampleset->x(n));
-      }
-      double kappa = cf->get(sampleset->x(n), sampleset->x(n));
-      // resize L if necessary
-      if (sampleset->size() > static_cast<std::size_t>(L.rows())) {
-        L.conservativeResize(n + initial_L_size, n + initial_L_size);
-      }
-      L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(k);
-      L.block(n,0,1,n) = k.transpose();
-      L(n,n) = sqrt(kappa - k.dot(k));
-    }
-    alpha_needs_update = true;
-#endif
   }
 
   bool GaussianProcess::set_y(size_t i, double y) 

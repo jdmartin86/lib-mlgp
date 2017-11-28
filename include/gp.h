@@ -62,6 +62,7 @@ namespace libgp {
     /** Predict variance of prediction for given input.
      *  @param x input vector
      *  @return predicted variance */
+    virtual double var(const Eigen::VectorXd& x_star );
     virtual double var(const double x[]);
     
     /** Add input-output-pair to sample set.
@@ -118,10 +119,14 @@ namespace libgp {
 
     void update_alpha();
 
+     void update_noise( );
+
     /** Compute covariance matrix and perform cholesky decomposition. */
     virtual void compute();
     
     bool alpha_needs_update;
+
+    bool noise_needs_update;
 
   private:
 
