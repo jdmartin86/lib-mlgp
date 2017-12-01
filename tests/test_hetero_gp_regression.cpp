@@ -93,3 +93,33 @@ TEST(HeteroGPRegressionTest, CovRQiso) {
   std::string covh_str("CovSum ( CovRQiso, CovNoise)");
   run_regression_test(covf_str,covh_str);
 }
+
+TEST(HeteroGPRegressionTest, UpdateL) {
+  int input_dim = 2;
+  libgp::GaussianProcess* gp 
+    = new libgp::GaussianProcess(input_dim,
+				 "CovSum ( CovSEiso, CovNoise)", 
+				 "CovSum ( CovSEiso, CovNoise)" );
+
+   Eigen::VectorXd fparams(gp->covf().get_param_dim());
+   fparams.setZero();
+   fparams(gp->covf().get_param_dim()-1) = -2;
+   gp->covf().set_loghyper(fparams);
+
+   Eigen::VectorXd hparams(gp->get_covh_param_dim());
+   hparams.setZero();
+   hparams(gp->get_covh_param_dim()-1) = -2;
+   gp->set_covh_loghyper(hparams);
+   
+  size_t n = 10;
+  Eigen::MatrixXd X(n, input_dim);
+  X.setRandom();
+  Eigen::VectorXd y = gp->draw_random_hetero_sample(X);
+  for(size_t i = 0; i < n; ++i) {
+    double x[2];
+    for(int j = 0; j < input_dim; ++j) x[j] = X(i,j);
+    gp->add_pattern(x, y(i));
+  }
+  double x[2] = {0,0};
+  gp->f(x);
+}
