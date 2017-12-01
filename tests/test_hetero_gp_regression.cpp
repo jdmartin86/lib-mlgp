@@ -1,3 +1,11 @@
+/**
+ * test_hetero_gp_regression
+ *
+ * This test evaluates the most likely heteroscedastic GP to
+ * regress a sample from the f-process posterior.
+ *
+ * John Martin Jr. ( jmarti3@stevens.edu ) 
+ */
 #include "gp.h"
 #include "gp_utils.h"
 
@@ -11,7 +19,7 @@ double test_mlgp_regression(libgp::GaussianProcess * gp)
   int n = libgp::Utils::randi(400)+100;
   Eigen::MatrixXd X(n, input_dim);
   X.setRandom();
-  Eigen::VectorXd y = gp->covf().draw_random_sample(X);
+  Eigen::VectorXd y = gp->draw_random_hetero_sample(X);
   for(size_t i = 0; i < n*0.8; ++i) {
     double x[input_dim];
     for(int j = 0; j < input_dim; ++j) x[j] = X(i,j);

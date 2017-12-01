@@ -170,7 +170,7 @@ namespace libgp {
   /**
    * f
    * 
-   * Compute the predictive mean value at test input x_star
+   * Compute the mean of the predicitve posterior
    */
   double GaussianProcess::f( const Eigen::VectorXd& x_star )
   {
@@ -188,6 +188,11 @@ namespace libgp {
     return f( x_star );    
   }
 
+  /**
+   * var
+   *
+   * Compute the variance of the predictive posterior
+   */
   double GaussianProcess::var( const Eigen::VectorXd& x_star )
   {
     if (sampleset->empty()) return 0;
@@ -196,11 +201,12 @@ namespace libgp {
     update_alpha();
     update_k_star(x_star);
     int n = sampleset->size();
-    Eigen::VectorXd v = L.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(k_star);
+    Eigen::VectorXd v = L.topLeftCorner(n, n).
+      triangularView<Eigen::Lower>().solve(k_star);
     return cf->get(x_star, x_star) - v.dot(v);	
   }
 
-  double GaussianProcess::var(const double x[])
+  double GaussianProcess::var( const double x[] )
   {
     Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
     return var( x_star );	
@@ -224,7 +230,7 @@ namespace libgp {
       for(size_t j = 0; j <= i; ++j) {
         L(i,j) = cf->get(sampleset->x(i), sampleset->x(j));
       }
-      if( h != NULL ) L(i,i) += h->f( sampleset->x(i) );
+      if( h != NULL ) L(i,i) += exp( h->f( sampleset->x(i) ) );
     }
     // perform cholesky factorization
     //solver.compute(K.selfadjointView<Eigen::Lower>());
@@ -379,6 +385,38 @@ namespace libgp {
   {
     if( h == NULL ) return;  
     h->covf().set_loghyper(p);
+  }
+
+  /**
+   * draw_random_hetero_sample
+   *
+   * Draws a random sample from the noise process prior, then uses that to draw 
+   * a sample from the f-process prior.
+   */
+  Eigen::VectorXd GaussianProcess::draw_random_hetero_sample( Eigen::MatrixXd &X )
+  {
+    assert (X.cols() == int(input_dim)); 
+    int n = X.rows();
+    Eigen::VectorXd z(n);
+
+    // draw a random function from the h-process
+    if( h == NULL ) return z;
+    z = h->covf().draw_random_sample( X );
+
+    Eigen::MatrixXd K(n, n);
+    Eigen::LLT<Eigen::MatrixXd> solver;
+    Eigen::VectorXd y(n);
+    // compute kernel matrix (lower triangle)
+    for(int i = 0; i < n; ++i) {
+      for(int j = i; j < n; ++j) {
+        K(j, i) = cf->get(X.row(j), X.row(i));
+      }
+      K(i,i) += exp( z(i) );
+      y(i) = Utils::randn();
+    }
+    // perform cholesky factorization
+    solver = K.llt();  
+    return solver.matrixL() * y;
   }
 
   size_t GaussianProcess::get_input_dim()

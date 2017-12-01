@@ -20,6 +20,7 @@
 
 #include "cov.h"
 #include "sampleset.h"
+#include "gp_utils.h"
 
 namespace libgp {
   
@@ -89,7 +90,10 @@ namespace libgp {
 
     /** Set the log hyperparameters of the h-process covariance function */
     void set_covh_loghyper( const Eigen::VectorXd& p );
-    
+
+    /** Draw a random sample from the heteroscedastic prior */
+    Eigen::VectorXd draw_random_hetero_sample( Eigen::MatrixXd &X );
+
     /** Get input vector dimensionality. */
     size_t get_input_dim();
 
