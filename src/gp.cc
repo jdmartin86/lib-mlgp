@@ -206,7 +206,6 @@ namespace libgp {
     return var( x_star );	
   }
 
-
   /**
    * compute
    *
@@ -258,14 +257,17 @@ namespace libgp {
   /**
    * update_noise
    * 
-   * Update the h-process data set with maximum likelihood predictions
+   * Update the h-process dataset with maximum likelihood predictions
    */
   void GaussianProcess::update_noise( )
   {
     if( !noise_needs_update ) return; 
+    noise_needs_update = false;
+
     std::random_device rd;
     std::mt19937 gen(rd());
     double f_i = 0.0 , v_i = 0.0 , z_i = 0.0;
+    CG cg;
 
     // TODO: test convergence
     for( size_t k = 0 ; k < 10 ; k++ )
@@ -285,10 +287,11 @@ namespace libgp {
       }
     
       // optimize f-process hyperparameters
-      CG cg;
       cg.maximize( this , 50 , 0 );
     }
-    noise_needs_update = false;
+
+    // optimize h-process hyperparameters after convergence
+    // cg.maximize( h , 50 , 0 );
   }
   
   /**
@@ -304,16 +307,7 @@ namespace libgp {
     // add sample to h process
     if( h != NULL )
     {
-      std::random_device rd;
-      std::mt19937 gen(rd());
-      double f_i = f( x );
-      double v_i = var( x );
-      std::normal_distribution<double> N( f_i , v_i );
-      double z_i = 0.0;
-      for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
-	z_i += 0.5 * SQ( y - N(gen) );
-      z_i = log( z_i / num_var_samp );
-      h->sampleset->add( x , z_i );
+      h->sampleset->add( x , 1.0E-6 );
       noise_needs_update = true;
     }
 
@@ -374,7 +368,19 @@ namespace libgp {
   {
     return *cf;
   }
-  
+
+  size_t GaussianProcess::get_covh_param_dim( )
+  {
+    if( h == NULL ) return 0;  
+    return h->covf().get_param_dim();
+  }
+
+  void GaussianProcess::set_covh_loghyper( const Eigen::VectorXd& p )
+  {
+    if( h == NULL ) return;  
+    h->covf().set_loghyper(p);
+  }
+
   size_t GaussianProcess::get_input_dim()
   {
     return input_dim;

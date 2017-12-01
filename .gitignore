@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Temporary files from EMacs
+*.*~
+
+# Build directory
+build/*

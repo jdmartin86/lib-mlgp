@@ -1,5 +1,6 @@
 SET(LIBGP_TESTS 
   gp_regression_test.cc
+  test_hetero_gp_regression.cpp
   #gp_sparse_regression_test.cc
   log_likelihood_test.cc
   test_optimizer.cc

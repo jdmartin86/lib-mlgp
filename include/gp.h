@@ -83,6 +83,12 @@ namespace libgp {
     
     /** Get reference on currently used covariance function. */
     CovarianceFunction & covf();
+
+    /** Get number of parameters in the h-process covariance function */
+    size_t get_covh_param_dim( );
+
+    /** Set the log hyperparameters of the h-process covariance function */
+    void set_covh_loghyper( const Eigen::VectorXd& p );
     
     /** Get input vector dimensionality. */
     size_t get_input_dim();
