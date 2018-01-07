@@ -170,7 +170,7 @@ namespace libgp {
   /**
    * f
    * 
-   * Compute the mean of the predicitve posterior
+   * Compute the f-process's predicitve mean
    */
   double GaussianProcess::f( const Eigen::VectorXd& x_star )
   {
@@ -189,13 +189,30 @@ namespace libgp {
   }
 
   /**
+   * g
+   * 
+   * Compute the exponentiated h-process predicitve mean
+   */
+  double GaussianProcess::g( const Eigen::VectorXd& x_star )
+  {
+    if( h == NULL ) return 0.0;
+    return exp( h->f( x_star ) ) ;    
+  }
+
+  double GaussianProcess::g( const double x[] )
+  {
+    Eigen::Map<const Eigen::VectorXd> x_star( x , input_dim );
+    return g( x_star );    
+  }
+
+  /**
    * var
    *
    * Compute the variance of the predictive posterior
    */
   double GaussianProcess::var( const Eigen::VectorXd& x_star )
   {
-    if (sampleset->empty()) return 0;
+    if( sampleset->empty( ) ) return 0;
     if( h != NULL ) update_noise( );
     compute();
     update_alpha();
@@ -230,7 +247,7 @@ namespace libgp {
       for(size_t j = 0; j <= i; ++j) {
         L(i,j) = cf->get(sampleset->x(i), sampleset->x(j));
       }
-      if( h != NULL ) L(i,i) += exp( h->f( sampleset->x(i) ) );
+      if( h != NULL ) L(i,i) += g( sampleset->x(i) );
     }
     // perform cholesky factorization
     //solver.compute(K.selfadjointView<Eigen::Lower>());
@@ -238,6 +255,11 @@ namespace libgp {
     alpha_needs_update = true;
   }
   
+  /**
+   * update_k_star
+   *
+   * Compute the covariance test vector for the given process
+   */
   void GaussianProcess::update_k_star(const Eigen::VectorXd &x_star)
   {
     k_star.resize(sampleset->size());
@@ -291,13 +313,14 @@ namespace libgp {
 	z_i = log( z_i / num_var_samp );
 	h->sampleset->set_y( i , z_i ); 
       }
+
+      // optimize h-process hyperparameters 
+      //cg.maximize( h , 50 , 0 );
     
       // optimize f-process hyperparameters
       cg.maximize( this , 50 , 0 );
     }
 
-    // optimize h-process hyperparameters after convergence
-    // cg.maximize( h , 50 , 0 );
   }
   
   /**
@@ -328,6 +351,12 @@ namespace libgp {
       return 1;
     }
     return false;
+  }
+
+  double GaussianProcess::get_z( size_t i )
+  {
+    if( h != NULL ) return h->sampleset->y(i);
+    return 0.0;
   }
 
   size_t GaussianProcess::get_sampleset_size()
@@ -375,16 +404,9 @@ namespace libgp {
     return *cf;
   }
 
-  size_t GaussianProcess::get_covh_param_dim( )
+  CovarianceFunction & GaussianProcess::covh()
   {
-    if( h == NULL ) return 0;  
-    return h->covf().get_param_dim();
-  }
-
-  void GaussianProcess::set_covh_loghyper( const Eigen::VectorXd& p )
-  {
-    if( h == NULL ) return;  
-    h->covf().set_loghyper(p);
+    return h->covf();
   }
 
   /**
@@ -393,19 +415,35 @@ namespace libgp {
    * Draws a random sample from the noise process prior, then uses that to draw 
    * a sample from the f-process prior.
    */
-  Eigen::VectorXd GaussianProcess::draw_random_hetero_sample( Eigen::MatrixXd &X )
+  Eigen::VectorXd GaussianProcess::draw_random_hetero_sample( Eigen::MatrixXd& X,
+							      Eigen::VectorXd& z)
   {
     assert (X.cols() == int(input_dim)); 
     int n = X.rows();
-    Eigen::VectorXd z(n);
+
+    if( h == NULL ) return z;
 
     // draw a random function from the h-process
-    if( h == NULL ) return z;
-    z = h->covf().draw_random_sample( X );
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<double> N( 0.0 , 0.1 );
 
     Eigen::MatrixXd K(n, n);
     Eigen::LLT<Eigen::MatrixXd> solver;
     Eigen::VectorXd y(n);
+    // compute kernel matrix (lower triangle)
+    for(int i = 0; i < n; ++i) {
+      for(int j = i; j < n; ++j) {
+        K(j, i) = h->covf().get(X.row(j), X.row(i));
+      }
+      y(i) = N(gen);
+    }
+    // perform cholesky factorization
+    solver = K.llt();  
+    z = solver.matrixL() * y;
+
+    // draw random sample from the f-process
+    K.setZero();
     // compute kernel matrix (lower triangle)
     for(int i = 0; i < n; ++i) {
       for(int j = i; j < n; ++j) {
@@ -417,6 +455,7 @@ namespace libgp {
     // perform cholesky factorization
     solver = K.llt();  
     return solver.matrixL() * y;
+
   }
 
   size_t GaussianProcess::get_input_dim()

@@ -59,6 +59,12 @@ namespace libgp {
      *  @return predicted value */
     virtual double f(const double x[]);
     virtual double f(const Eigen::VectorXd& x_star );
+
+    /** Predict target value for given input.
+     *  @param x input vector
+     *  @return predicted value */
+    virtual double g(const double x[]);
+    virtual double g(const Eigen::VectorXd& x_star );
     
     /** Predict variance of prediction for given input.
      *  @param x input vector
@@ -76,23 +82,26 @@ namespace libgp {
 
     bool set_y(size_t i, double y);
 
+    /** 
+     * Get i-th h-process target
+     */
+    double get_z( size_t i );
+
     /** Get number of samples in the training set. */
     size_t get_sampleset_size();
     
     /** Clear sample set and free memory. */
     void clear_sampleset();
     
-    /** Get reference on currently used covariance function. */
+    /** Get reference of f-process covariance function. */
     CovarianceFunction & covf();
 
-    /** Get number of parameters in the h-process covariance function */
-    size_t get_covh_param_dim( );
-
-    /** Set the log hyperparameters of the h-process covariance function */
-    void set_covh_loghyper( const Eigen::VectorXd& p );
+    /** Get reference of h-process covariance function. */
+    CovarianceFunction & covh();
 
     /** Draw a random sample from the heteroscedastic prior */
-    Eigen::VectorXd draw_random_hetero_sample( Eigen::MatrixXd &X );
+    Eigen::VectorXd draw_random_hetero_sample( Eigen::MatrixXd& X,
+					       Eigen::VectorXd& z);
 
     /** Get input vector dimensionality. */
     size_t get_input_dim();
