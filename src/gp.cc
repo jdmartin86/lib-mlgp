@@ -72,6 +72,7 @@ namespace libgp {
     cf->loghyper_changed = 0;
     sampleset = new SampleSet(input_dim);
     L.resize(initial_L_size, initial_L_size);
+    Lf.resize(initial_L_size, initial_L_size);
 
     // create the logarithmic noise process
     h = new GaussianProcess( input_dim , covh_def );
@@ -174,12 +175,11 @@ namespace libgp {
    */
   double GaussianProcess::f( const Eigen::VectorXd& x_star )
   {
-    if( sampleset->empty() ) return 0.0;
-    if( h != NULL ) update_noise( );
-    compute();
-    update_alpha();
-    update_k_star(x_star);
-    return k_star.dot(alpha);    
+    if( sampleset->empty( ) ) return 0.0;
+    computef( );
+    update_alphaf( );
+    update_k_star( x_star );
+    return k_star.dot( alphaf );    
   }
 
   double GaussianProcess::f( const double x[] )
@@ -203,6 +203,49 @@ namespace libgp {
   {
     Eigen::Map<const Eigen::VectorXd> x_star( x , input_dim );
     return g( x_star );    
+  }
+
+  /**
+   * mean
+   * 
+   * Compute the composit process's predicitve mean
+   */
+  double GaussianProcess::mean( const Eigen::VectorXd& x_star )
+  {
+    if( sampleset->empty( ) ) return 0.0;
+    compute( );
+    update_alpha( );
+    update_k_star( x_star );
+    return k_star.dot( alpha );    
+  }
+
+  double GaussianProcess::mean( const double x[] )
+  {
+    Eigen::Map<const Eigen::VectorXd> x_star( x , input_dim );
+    return mean( x_star );    
+  }
+
+  /**
+   * varf
+   *
+   * Compute the variance of the predictive posterior
+   */
+  double GaussianProcess::varf( const Eigen::VectorXd& x_star )
+  {
+    if( sampleset->empty( ) ) return 0;
+    computef();
+    update_alphaf();
+    update_k_star(x_star);
+    int n = sampleset->size();
+    Eigen::VectorXd v = Lf.topLeftCorner(n, n).
+      triangularView<Eigen::Lower>().solve(k_star);
+    return cf->get(x_star, x_star) - v.dot(v);	
+  }
+
+  double GaussianProcess::varf( const double x[] )
+  {
+    Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
+    return varf( x_star );	
   }
 
   /**
@@ -254,6 +297,31 @@ namespace libgp {
     L.topLeftCorner(n, n) = L.topLeftCorner(n, n).selfadjointView<Eigen::Lower>().llt().matrixL();
     alpha_needs_update = true;
   }
+
+  /**
+   * compute
+   *
+   * Compute the Cholesky decomp
+   */
+  void GaussianProcess::computef()
+  {
+    // can previously computed values be used?
+    if (!cf->loghyper_changed) return;
+    cf->loghyper_changed = false;
+    int n = sampleset->size();
+    // resize L if necessary
+    if (n > Lf.rows()) Lf.resize(n + initial_L_size, n + initial_L_size);
+    // compute kernel matrix (lower triangle)
+    for(size_t i = 0; i < sampleset->size(); ++i) {
+      for(size_t j = 0; j <= i; ++j) {
+        Lf(i,j) = cf->get(sampleset->x(i), sampleset->x(j));
+      }
+    }
+    // perform cholesky factorization
+    //solver.compute(K.selfadjointView<Eigen::Lower>());
+    Lf.topLeftCorner(n, n) = Lf.topLeftCorner(n, n).selfadjointView<Eigen::Lower>().llt().matrixL();
+    alphaf_needs_update = true;
+  }
   
   /**
    * update_k_star
@@ -282,6 +350,21 @@ namespace libgp {
     L.topLeftCorner(n, n).triangularView<Eigen::Lower>().adjoint().solveInPlace(alpha);
   }
 
+  void GaussianProcess::update_alphaf()
+  {
+    // can previously computed values be used?
+    if (!alphaf_needs_update) return;
+    alphaf_needs_update = false;
+    alphaf.resize(sampleset->size());
+    // Map target values to VectorXd
+    const std::vector<double>& targets = sampleset->y();
+    Eigen::Map<const Eigen::VectorXd> y(&targets[0], sampleset->size());
+    int n = sampleset->size();
+    alphaf = Lf.topLeftCorner(n, n).triangularView<Eigen::Lower>().solve(y);
+    Lf.topLeftCorner(n, n).triangularView<Eigen::Lower>().adjoint().
+      solveInPlace(alphaf);
+  }
+
   /**
    * update_noise
    * 
@@ -300,11 +383,14 @@ namespace libgp {
     // TODO: test convergence
     for( size_t k = 0 ; k < 10 ; k++ )
     {
+      // optimize f-process hyperparameters
+      cg.maximize( this , 50 , 0 );
+
       // update h-process dataset
       for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
       {
 	f_i = f( sampleset->x(i) );
-	v_i = var( sampleset->x(i) );
+	v_i = varf( sampleset->x(i) );
       
 	std::normal_distribution<double> N( f_i , v_i );
 	z_i = 0.0;
@@ -316,9 +402,9 @@ namespace libgp {
 
       // optimize h-process hyperparameters 
       //cg.maximize( h , 50 , 0 );
-    
-      // optimize f-process hyperparameters
-      cg.maximize( this , 50 , 0 );
+
+      // optimize composite process hyperparameters 
+      //cg.maximize( h , 50 , 0 );
     }
 
   }
@@ -332,6 +418,8 @@ namespace libgp {
   void GaussianProcess::add_pattern(const double x[], double y)
   {
     sampleset->add( x , y );
+    cf->loghyper_changed = true;
+    alpha_needs_update = true;
 
     // add sample to h process
     if( h != NULL )
@@ -339,9 +427,6 @@ namespace libgp {
       h->sampleset->add( x , 1.0E-6 );
       noise_needs_update = true;
     }
-
-    cf->loghyper_changed = true;
-    alpha_needs_update = true;
   }
 
   bool GaussianProcess::set_y(size_t i, double y) 

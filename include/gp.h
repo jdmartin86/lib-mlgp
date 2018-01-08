@@ -65,7 +65,19 @@ namespace libgp {
      *  @return predicted value */
     virtual double g(const double x[]);
     virtual double g(const Eigen::VectorXd& x_star );
+
+    /** Predict target value for given input.
+     *  @param x input vector
+     *  @return predicted value */
+    virtual double mean(const double x[]);
+    virtual double mean(const Eigen::VectorXd& x_star );
     
+    /** Predict variance of prediction for given input.
+     *  @param x input vector
+     *  @return predicted variance */
+    virtual double varf(const Eigen::VectorXd& x_star );
+    virtual double varf(const double x[]);
+
     /** Predict variance of prediction for given input.
      *  @param x input vector
      *  @return predicted variance */
@@ -78,7 +90,6 @@ namespace libgp {
      *  @param y output value
      */
     void add_pattern(const double x[], double y);
-
 
     bool set_y(size_t i, double y);
 
@@ -122,13 +133,19 @@ namespace libgp {
     
     /** Alpha is cached for performance. */ 
     Eigen::VectorXd alpha;
+    Eigen::VectorXd alphaf;
     
     /** Last test kernel vector. */
     Eigen::VectorXd k_star;
 
     /** Linear solver used to invert the covariance matrix. */
-//    Eigen::LLT<Eigen::MatrixXd> solver;
-    Eigen::MatrixXd L;
+    //    Eigen::LLT<Eigen::MatrixXd> solver;
+
+    // Cholesky decomp for the composite process
+    Eigen::MatrixXd L; 
+
+    // Cholesky decomp for the homoscedastic process
+    Eigen::MatrixXd Lf;
     
     /** Input vector dimensionality. */
     size_t input_dim;
@@ -137,13 +154,19 @@ namespace libgp {
     void update_k_star(const Eigen::VectorXd &x_star);
 
     void update_alpha();
+    void update_alphaf();
 
      void update_noise( );
 
     /** Compute covariance matrix and perform cholesky decomposition. */
     virtual void compute();
+
+    /** Homoscedastic process: Compute covariance matrix and
+     *  perform cholesky decomposition.*/
+    virtual void computef();
     
     bool alpha_needs_update;
+    bool alphaf_needs_update;
 
     bool noise_needs_update;
 

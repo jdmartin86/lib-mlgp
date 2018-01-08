@@ -78,24 +78,25 @@ double test_mlgp_regression(libgp::GaussianProcess * gp)
   {
     double x[input_dim];
     x[0] = x_tr[i];
-    double f = gp->f(x);
+    double f = gp->mean(x);
     double error = f - y(i);
     tss += error*error;
   }
 
   std::ofstream tfile;
   tfile.open( "test.txt" );
-  tfile << "x,f,s,g,z" << std::endl;
+  tfile << "x,f,s,g,y" << std::endl;
   size_t N = 500;
   Eigen::VectorXd x_ts = linspace( 0.0 , 1.0 , N );
   for(size_t i = 0; i < N; ++i) 
   {
     double x[input_dim];
     x[0] = x_ts[i];
-    double f = gp->f(x);
+    double f = gp->mean(x);
     double s = gp->var(x);
     double g = gp->g(x);
-    tfile << x[0] << "," << f << "," << s << "," << g << "," << std::endl;
+    tfile << x[0] << "," << f << "," 
+	  << s << "," << g << "," << 2.0*sin(2.0*M_PI*x[0])<< std::endl;
   }
   tfile.close();
 
@@ -125,13 +126,14 @@ void run_regression_test( std::string covf_str,
 							    covh_str );
     Eigen::VectorXd fparams(gp->covf().get_param_dim());
     fparams.setZero();
-    fparams(0) = 0.22;
+    fparams(1) = log(0.22);
     fparams(gp->covf().get_param_dim()-1) = log(1.0E-6);
     gp->covf().set_loghyper(fparams);
 
     Eigen::VectorXd hparams(gp->covh().get_param_dim());
     hparams.setZero();
-    hparams(gp->covh().get_param_dim()-1) = log(1.0E-2);
+    hparams(0) = log( 1.0 );
+    hparams(gp->covh().get_param_dim()-1) = log(0.5);
     gp->covh().set_loghyper(hparams);
     
     mss += test_mlgp_regression(gp);    
@@ -143,7 +145,7 @@ void run_regression_test( std::string covf_str,
 TEST(HeteroGPRegressionTest, SEiso)
 {
   std::string covf_str("CovSum( CovSEiso, CovNoise )");
-  std::string covh_str("CovSum( CovSEiso, CovNoise )");
+  std::string covh_str("CovSum( CovLinearard, CovNoise )");
   run_regression_test( covf_str , covh_str );
 }
 /*
