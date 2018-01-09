@@ -14,6 +14,7 @@ SET(LIBGP_SRC
   src/cov_sum.cc
   src/cov_prod.cc
   src/gp.cc
+  src/gp_opt.cc
   src/gp_utils.cc
   src/sampleset.cc
   src/rprop.cc
@@ -37,6 +38,7 @@ SET(LIBGP_INTERFACES
   include/cov_sum.h
   include/cov_prod.h
   include/gp.h
+  include/gp_opt.h
   include/gp_utils.h
   include/sampleset.h
   include/rprop.h

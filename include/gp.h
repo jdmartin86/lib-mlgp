@@ -117,9 +117,18 @@ namespace libgp {
     /** Get input vector dimensionality. */
     size_t get_input_dim();
 
+    double log_flikelihood();
+    double log_hlikelihood();
     double log_likelihood();
     
+    Eigen::VectorXd log_flikelihood_gradient();
+    Eigen::VectorXd log_hlikelihood_gradient();
     Eigen::VectorXd log_likelihood_gradient();
+
+    /** Optimize hyperparams for f-process */
+    void optimize_fhyper( );
+    void optimize_hhyper( );
+    void optimize_hyper( );
 
   protected:
     /** The h-process for heteroscedastic Gaussian processes */

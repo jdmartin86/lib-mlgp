@@ -118,7 +118,7 @@ void run_regression_test( std::string covf_str,
 			  std::string covh_str )
 {
   double mss = 0.0;
-  int n=20;
+  int n=1;
   for (int i=0; i<n; ++i) {
     int input_dim = 1;//libgp::Utils::randi(2) + 2;
     libgp::GaussianProcess* gp = new libgp::GaussianProcess(input_dim,
@@ -145,7 +145,7 @@ void run_regression_test( std::string covf_str,
 TEST(HeteroGPRegressionTest, SEiso)
 {
   std::string covf_str("CovSum( CovSEiso, CovNoise )");
-  std::string covh_str("CovSum( CovLinearard, CovNoise )");
+  std::string covh_str("CovSum( CovSEiso, CovNoise )");
   run_regression_test( covf_str , covh_str );
 }
 /*

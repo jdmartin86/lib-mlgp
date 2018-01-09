@@ -3,8 +3,9 @@
 // All rights reserved.
 
 #include "gp.h"
+#include "gp_opt.h"
 #include "cov_factory.h"
-#include "cg.h"
+#include "LBFGS.h"
 
 #include <iostream>
 #include <fstream>
@@ -378,13 +379,16 @@ namespace libgp {
     std::random_device rd;
     std::mt19937 gen(rd());
     double f_i = 0.0 , v_i = 0.0 , z_i = 0.0;
-    CG cg;
+
+    Eigen::VectorXd p_prev = covf().get_loghyper();
+    Eigen::VectorXd p_curr = covf().get_loghyper();
 
     // TODO: test convergence
-    for( size_t k = 0 ; k < 10 ; k++ )
+    for( size_t k = 0 ; k < 1 ; k++ )
     {
       // optimize f-process hyperparameters
-      cg.maximize( this , 50 , 0 );
+      std::cout << "Optimizing f-process\n";
+      optimize_fhyper( );
 
       // update h-process dataset
       for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
@@ -401,12 +405,19 @@ namespace libgp {
       }
 
       // optimize h-process hyperparameters 
-      //cg.maximize( h , 50 , 0 );
+      std::cout << "Optimizing h-process\n";
+      optimize_hhyper();
 
       // optimize composite process hyperparameters 
-      //cg.maximize( h , 50 , 0 );
-    }
+      std::cout << "Optimizing composite process\n";
+      optimize_hyper();
 
+      // check convergence
+       p_curr = covf().get_loghyper();
+      Eigen::VectorXd diff = p_curr - p_prev;
+      if( diff.norm() < 1.0E-2 ) break;
+      p_prev = p_curr;
+    }
   }
   
   /**
@@ -548,6 +559,17 @@ namespace libgp {
     return input_dim;
   }
 
+  double GaussianProcess::log_flikelihood()
+  {
+    computef();
+    update_alphaf();
+    int n = sampleset->size();
+    const std::vector<double>& targets = sampleset->y();
+    Eigen::Map<const Eigen::VectorXd> y(&targets[0], sampleset->size());
+    double det = 2 * Lf.diagonal().head(n).array().log().sum();
+    return -0.5*y.dot(alphaf) - 0.5*det - 0.5*n*log2pi;
+  }
+
   double GaussianProcess::log_likelihood()
   {
     compute();
@@ -557,6 +579,31 @@ namespace libgp {
     Eigen::Map<const Eigen::VectorXd> y(&targets[0], sampleset->size());
     double det = 2 * L.diagonal().head(n).array().log().sum();
     return -0.5*y.dot(alpha) - 0.5*det - 0.5*n*log2pi;
+  }
+
+  Eigen::VectorXd GaussianProcess::log_flikelihood_gradient() 
+  {
+    computef();
+    update_alphaf();
+    size_t n = sampleset->size();
+    Eigen::VectorXd grad = Eigen::VectorXd::Zero(cf->get_param_dim());
+    Eigen::VectorXd g(grad.size());
+    Eigen::MatrixXd W = Eigen::MatrixXd::Identity(n, n);
+
+    // compute kernel matrix inverse
+    Lf.topLeftCorner(n, n).triangularView<Eigen::Lower>().solveInPlace(W);
+    Lf.topLeftCorner(n, n).triangularView<Eigen::Lower>().transpose().solveInPlace(W);
+    W = alphaf * alphaf.transpose() - W;
+
+    for(size_t i = 0; i < n; ++i) {
+      for(size_t j = 0; j <= i; ++j) {
+        cf->grad(sampleset->x(i), sampleset->x(j), g);
+        if (i==j) grad += W(i,j) * g * 0.5;
+        else      grad += W(i,j) * g;
+      }
+    }
+
+    return grad;
   }
 
   Eigen::VectorXd GaussianProcess::log_likelihood_gradient() 
@@ -583,5 +630,62 @@ namespace libgp {
     }
 
     return grad;
+  }
+
+  void GaussianProcess::optimize_fhyper( )
+  {
+    LBFGSpp::LBFGSParam<double> param;
+    param.epsilon = 1.0e-1;
+    param.max_iterations = 25;
+    LBFGSpp::LBFGSSolver<double> solver(param);
+    GaussianProcessfOpt fun;    
+    fun.parent( this );
+
+    Eigen::VectorXd x(covf().get_param_dim());
+    x.setZero();
+    double fx;
+    int niter = solver.minimize( fun , x , fx );
+
+    std::cout << niter << " iterations" << std::endl;
+    std::cout << "x = \n" << x.transpose() << std::endl;
+    std::cout << "f(x) = " << fx << std::endl;
+  }
+
+  void GaussianProcess::optimize_hhyper( )
+  {
+    LBFGSpp::LBFGSParam<double> param;
+    param.epsilon = 1.0e-1;
+    param.max_iterations = 25;
+    LBFGSpp::LBFGSSolver<double> solver(param);
+    GaussianProcessfOpt fun;    
+    fun.parent( h );
+
+    Eigen::VectorXd x(h->covf().get_param_dim());
+    x.setZero();
+    double fx;
+    int niter = solver.minimize( fun , x , fx );
+
+    std::cout << niter << " iterations" << std::endl;
+    std::cout << "x = \n" << x.transpose() << std::endl;
+    std::cout << "f(x) = " << fx << std::endl;
+  }
+
+  void GaussianProcess::optimize_hyper( )
+  {
+    LBFGSpp::LBFGSParam<double> param;
+    param.epsilon = 1.0e-2;
+    param.max_iterations = 25;
+    LBFGSpp::LBFGSSolver<double> solver(param);
+    GaussianProcessOpt fun;    
+    fun.parent( this );
+
+    Eigen::VectorXd x(covf().get_param_dim());
+    x.setZero();
+    double fx;
+    int niter = solver.minimize( fun , x , fx );
+
+    std::cout << niter << " iterations" << std::endl;
+    std::cout << "x = \n" << x.transpose() << std::endl;
+    std::cout << "f(x) = " << fx << std::endl;
   }
 }
