@@ -46,6 +46,10 @@ namespace libgp {
      */
     static double sign(double x);
 
+    /** Bound
+     */
+    static double bound( double x , double m , double M );
+
     // drand48() is not aviable under win
 #if defined(WIN32) || defined(WIN64)
     inline double drand48()

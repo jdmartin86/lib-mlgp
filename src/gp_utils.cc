@@ -82,4 +82,11 @@ namespace libgp {
     if (x<0) return -1.0;
     return 0.0;
   }
+
+  double Utils::bound( double x , double m , double M )
+  {
+    if( x < m ) return m;
+    if( x > M ) return M;
+    return x;
+  }
 }

@@ -59,7 +59,7 @@ void williams_data( Eigen::VectorXd& x , Eigen::VectorXd& y )
 double test_mlgp_regression(libgp::GaussianProcess * gp)
 {
   int input_dim = gp->get_input_dim(); // should be one
-  size_t n = 200;
+  size_t n = 10;//200;
 
   Eigen::VectorXd x_tr( n );
   Eigen::VectorXd y( n );

@@ -375,6 +375,7 @@ namespace libgp {
   {
     if( !noise_needs_update ) return; 
     noise_needs_update = false;
+    std::cout << "Updating noise" << std::endl;
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -400,8 +401,11 @@ namespace libgp {
 	z_i = 0.0;
 	for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
 	  z_i += 0.5 * SQ( sampleset->y(i) - N(gen) );
-	z_i = log( z_i / num_var_samp );
-	h->sampleset->set_y( i , z_i ); 
+	z_i = Utils::bound( log( z_i / num_var_samp ) , 
+			    f_i - 2.0*v_i ,
+			    f_i + 2.0*v_i );
+	std::cout << "Adding " << z_i << std::endl;
+	h->set_y( i , z_i ); 
       }
 
       // optimize h-process hyperparameters 
@@ -409,14 +413,14 @@ namespace libgp {
       optimize_hhyper();
 
       // optimize composite process hyperparameters 
-      std::cout << "Optimizing composite process\n";
-      optimize_hyper();
+      //std::cout << "Optimizing composite process\n";
+      //optimize_hyper();
 
       // check convergence
-       p_curr = covf().get_loghyper();
-      Eigen::VectorXd diff = p_curr - p_prev;
-      if( diff.norm() < 1.0E-2 ) break;
-      p_prev = p_curr;
+      //p_curr = covf().get_loghyper();
+      //Eigen::VectorXd diff = p_curr - p_prev;
+      //if( diff.norm() < 1.0E-2 ) break;
+      //p_prev = p_curr;
     }
   }
   
@@ -435,7 +439,7 @@ namespace libgp {
     // add sample to h process
     if( h != NULL )
     {
-      h->sampleset->add( x , 1.0E-6 );
+      h->sampleset->add( x , log(SQ( y - f(x) )) );
       noise_needs_update = true;
     }
   }
@@ -654,7 +658,7 @@ namespace libgp {
   void GaussianProcess::optimize_hhyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-1;
+    param.epsilon = 1.0e-2;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessfOpt fun;    
