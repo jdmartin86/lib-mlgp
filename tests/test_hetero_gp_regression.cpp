@@ -39,14 +39,14 @@ void williams_data( Eigen::VectorXd& x , Eigen::VectorXd& y )
 {
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_real_distribution<double> dist( 0.0 , 1.0 );
+  std::uniform_real_distribution<double> dist( 0.0 , M_PI );
   std::normal_distribution<double> z( 0.0 , 1.0 );
 
   for( size_t i = 1 ; i < x.size() ; i++ ) 
   {
     x(i) = dist(gen);
-    double m = 2.0*sin(2.0*M_PI*x(i));
-    double s = 0.5 + x(i); 
+    double m = sin(2.5*x(i))*sin(1.5*x(i));
+    double s = 0.01 + 0.25*pow( 1.0-sin(2.5*x(i)) , 2.0 ); 
     y(i) =  m + s*z(gen);
   }
 }
@@ -59,44 +59,39 @@ void williams_data( Eigen::VectorXd& x , Eigen::VectorXd& y )
 double test_mlgp_regression(libgp::GaussianProcess * gp)
 {
   int input_dim = gp->get_input_dim(); // should be one
-  size_t n = 10;//200;
+  size_t n = 200;
 
   Eigen::VectorXd x_tr( n );
   Eigen::VectorXd y( n );
   williams_data( x_tr , y );
 
-  for(size_t i = 0; i < n*0.8; ++i) 
+  for(size_t i = 0; i < 0.9*n; ++i) 
   {
     double x[input_dim];
     x[0] = x_tr[i];
     gp->add_pattern(x, y(i));
   }
 
-  // test loop
-  double tss = 0;
-  for(size_t i = n*0.8+1; i < n; ++i) 
-  {
-    double x[input_dim];
-    x[0] = x_tr[i];
-    double f = gp->mean(x);
-    double error = f - y(i);
-    tss += error*error;
-  }
-
   std::ofstream tfile;
   tfile.open( "test.txt" );
-  tfile << "x,f,s,g,y" << std::endl;
+  tfile << "x,f,s,g,v,y,z" << std::endl;
   size_t N = 500;
-  Eigen::VectorXd x_ts = linspace( 0.0 , 1.0 , N );
+  Eigen::VectorXd x_ts = linspace( 0.0 , M_PI , N );
   for(size_t i = 0; i < N; ++i) 
   {
     double x[input_dim];
     x[0] = x_ts[i];
     double f = gp->mean(x);
-    double s = gp->var(x);
-    double g = gp->g(x);
-    tfile << x[0] << "," << f << "," 
-	  << s << "," << g << "," << 2.0*sin(2.0*M_PI*x[0])<< std::endl;
+    double s = sqrt( gp->var(x) );
+    double g = sqrt( gp->g(x) );
+    double v = sqrt( sqrt( gp->varg(x) ) );
+    tfile << x[0] << "," 
+	  << f << "," 
+	  << s << ","
+	  << g << "," 
+	  << v << ","
+	  << sin(2.5*x[0])*sin(1.5*x[0]) << ","
+	  << 0.01 + 0.25*pow( 1.0-sin(2.5*x[0]) , 2.0 ) << std::endl;
   }
   tfile.close();
 
@@ -104,14 +99,14 @@ double test_mlgp_regression(libgp::GaussianProcess * gp)
   std::ofstream ofile;
   ofile.open( "train.txt" );
   ofile << "x,y,z" << std::endl;
-  for(size_t i = 0; i < n*0.8; ++i) 
+  for(size_t i = 0; i < n*0.9; ++i) 
   {
-    ofile << x_tr[i] << "," << y(i) << "," << gp->get_z(i) << std::endl;
+    ofile << x_tr[i] << "," << y(i) << "," << sqrt(exp(gp->get_z(i))) << std::endl;
   }
   ofile.close();
 
 
-  return tss/(n*0.2-1);
+  return 0.0;
 }
 
 void run_regression_test( std::string covf_str,
@@ -126,14 +121,12 @@ void run_regression_test( std::string covf_str,
 							    covh_str );
     Eigen::VectorXd fparams(gp->covf().get_param_dim());
     fparams.setZero();
-    fparams(1) = log(0.22);
-    fparams(gp->covf().get_param_dim()-1) = log(1.0E-6);
+    fparams(gp->covf().get_param_dim()-1) = -2;
     gp->covf().set_loghyper(fparams);
 
     Eigen::VectorXd hparams(gp->covh().get_param_dim());
     hparams.setZero();
-    hparams(0) = log( 1.0 );
-    hparams(gp->covh().get_param_dim()-1) = log(0.5);
+    hparams(gp->covh().get_param_dim()-1) = -2;
     gp->covh().set_loghyper(hparams);
     
     mss += test_mlgp_regression(gp);    

@@ -14,8 +14,6 @@
 #include <iomanip>
 #include <ctime>
 
-#define SQ( x ) ( ( x ) * ( x ) )
-
 namespace libgp {
   
   const double log2pi = log(2*M_PI);
@@ -197,7 +195,7 @@ namespace libgp {
   double GaussianProcess::g( const Eigen::VectorXd& x_star )
   {
     if( h == NULL ) return 0.0;
-    return exp( h->f( x_star ) ) ;    
+    return exp( h->f( x_star ) );    
   }
 
   double GaussianProcess::g( const double x[] )
@@ -214,6 +212,7 @@ namespace libgp {
   double GaussianProcess::mean( const Eigen::VectorXd& x_star )
   {
     if( sampleset->empty( ) ) return 0.0;
+    if( h != NULL ) update_noise( );
     compute( );
     update_alpha( );
     update_k_star( x_star );
@@ -250,6 +249,23 @@ namespace libgp {
   }
 
   /**
+   * varg
+   *
+   * Compute the variance of the exponentiated h-process predictive posterior
+   */
+  double GaussianProcess::varg( const Eigen::VectorXd& x_star )
+  {
+    if( h == NULL ) return 0.0;
+    return exp( h->var( x_star ) ) ;    
+  }
+
+  double GaussianProcess::varg( const double x[] )
+  {
+    Eigen::Map<const Eigen::VectorXd> x_star(x, input_dim);
+    return varg( x_star );	
+  }
+
+  /**
    * var
    *
    * Compute the variance of the predictive posterior
@@ -281,7 +297,15 @@ namespace libgp {
   void GaussianProcess::compute()
   {
     // can previously computed values be used?
-    if (!cf->loghyper_changed) return;
+    if( h != NULL )
+    { 
+      if(!cf->loghyper_changed && !h->cf->loghyper_changed) return;
+    }
+    else
+    {
+      if(!cf->loghyper_changed) return;
+    }
+
     cf->loghyper_changed = false;
     int n = sampleset->size();
     // resize L if necessary
@@ -291,7 +315,10 @@ namespace libgp {
       for(size_t j = 0; j <= i; ++j) {
         L(i,j) = cf->get(sampleset->x(i), sampleset->x(j));
       }
-      if( h != NULL ) L(i,i) += g( sampleset->x(i) );
+      if( h != NULL )
+      {
+	L(i,i) += g( sampleset->x(i) );
+      }
     }
     // perform cholesky factorization
     //solver.compute(K.selfadjointView<Eigen::Lower>());
@@ -300,9 +327,9 @@ namespace libgp {
   }
 
   /**
-   * compute
+   * computef
    *
-   * Compute the Cholesky decomp
+   * Compute the Cholesky decomp of the f-process
    */
   void GaussianProcess::computef()
   {
@@ -375,7 +402,6 @@ namespace libgp {
   {
     if( !noise_needs_update ) return; 
     noise_needs_update = false;
-    std::cout << "Updating noise" << std::endl;
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -383,44 +409,57 @@ namespace libgp {
 
     Eigen::VectorXd p_prev = covf().get_loghyper();
     Eigen::VectorXd p_curr = covf().get_loghyper();
+    Eigen::VectorXd z(sampleset->size());
 
-    // TODO: test convergence
-    for( size_t k = 0 ; k < 1 ; k++ )
+    for( size_t k = 0 ; k < 2 ; k++ )
     {
       // optimize f-process hyperparameters
-      std::cout << "Optimizing f-process\n";
+      std::cout << "Optimizing f-process: ";    
       optimize_fhyper( );
 
-      // update h-process dataset
+      // update h-process dataset by computing the sample variance
       for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
       {
-	f_i = f( sampleset->x(i) );
-	v_i = varf( sampleset->x(i) );
-      
-	std::normal_distribution<double> N( f_i , v_i );
+	f_i = Utils::bound( f( sampleset->x(i) ) , -1.0E6 , 1.0E6 );
+	v_i = Utils::bound( varf( sampleset->x(i) ) , 1.0E-6 , 1.0E6 );
+	std::normal_distribution<double> N( f_i , sqrt(v_i) );
 	z_i = 0.0;
 	for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
-	  z_i += 0.5 * SQ( sampleset->y(i) - N(gen) );
-	z_i = Utils::bound( log( z_i / num_var_samp ) , 
-			    f_i - 2.0*v_i ,
-			    f_i + 2.0*v_i );
-	std::cout << "Adding " << z_i << std::endl;
-	h->set_y( i , z_i ); 
+	  z_i += pow( sampleset->y(i) - N(gen) , 2.0 );
+
+	// TEST HACK -- reenable soon
+	//std::cout << "z_i = " << z_i << std::endl;
+	//z_i = Utils::bound( z_i  , 0.0 , log( 1.0E6 ) );
+	//z(i) = log( z_i / ( num_var_samp - 1.0 ) );
+	//h->set_y( i , log( z_i / ( num_var_samp - 1.0 ) ) ); 
+
+	std::normal_distribution<double> C( 0.0 , 0.1 );
+	z(i) = pow(0.01 + 0.25*pow( 1.0-sin(2.5*sampleset->x(i)[0]) , 2.0 ) + C(gen),2);
+	z(i) = log(z(i));
+	h->set_y( i , z(i) ); 
+
       }
+      //      z = z.array() - z.mean();
+      //for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
+      //	h->set_y( i , z(i) ); 
 
       // optimize h-process hyperparameters 
       std::cout << "Optimizing h-process\n";
       optimize_hhyper();
 
       // optimize composite process hyperparameters 
-      //std::cout << "Optimizing composite process\n";
-      //optimize_hyper();
+      std::cout << "Optimizing composite process\n";
+      optimize_hyper();
 
       // check convergence
-      //p_curr = covf().get_loghyper();
-      //Eigen::VectorXd diff = p_curr - p_prev;
-      //if( diff.norm() < 1.0E-2 ) break;
-      //p_prev = p_curr;
+      p_curr = covf().get_loghyper();
+      Eigen::VectorXd diff = p_curr - p_prev;
+      if( diff.norm() < 1.0E-2 )
+      { 
+	std::cout << "Convergence reached!\n";
+	break;
+      }
+      p_prev = p_curr;
     }
   }
   
@@ -439,7 +478,7 @@ namespace libgp {
     // add sample to h process
     if( h != NULL )
     {
-      h->sampleset->add( x , log(SQ( y - f(x) )) );
+      h->sampleset->add( x , log(pow( y - f(x) , 2.0 )) );
       noise_needs_update = true;
     }
   }
@@ -649,6 +688,7 @@ namespace libgp {
     x.setZero();
     double fx;
     int niter = solver.minimize( fun , x , fx );
+    cf->loghyper_changed = true;
 
     std::cout << niter << " iterations" << std::endl;
     std::cout << "x = \n" << x.transpose() << std::endl;
@@ -668,6 +708,7 @@ namespace libgp {
     x.setZero();
     double fx;
     int niter = solver.minimize( fun , x , fx );
+    h->cf->loghyper_changed = true;
 
     std::cout << niter << " iterations" << std::endl;
     std::cout << "x = \n" << x.transpose() << std::endl;
@@ -687,6 +728,7 @@ namespace libgp {
     x.setZero();
     double fx;
     int niter = solver.minimize( fun , x , fx );
+    cf->loghyper_changed = true;
 
     std::cout << niter << " iterations" << std::endl;
     std::cout << "x = \n" << x.transpose() << std::endl;

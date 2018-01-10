@@ -81,6 +81,12 @@ namespace libgp {
     /** Predict variance of prediction for given input.
      *  @param x input vector
      *  @return predicted variance */
+    virtual double varg(const Eigen::VectorXd& x_star );
+    virtual double varg(const double x[]);
+
+    /** Predict variance of prediction for given input.
+     *  @param x input vector
+     *  @return predicted variance */
     virtual double var(const Eigen::VectorXd& x_star );
     virtual double var(const double x[]);
     
