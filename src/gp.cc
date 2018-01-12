@@ -684,7 +684,7 @@ namespace libgp {
   void GaussianProcess::optimize_fhyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-2;
+    param.epsilon = 1.0e-3;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessfOpt fun;    
@@ -707,7 +707,9 @@ namespace libgp {
   void GaussianProcess::optimize_hhyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-3;
+    param.epsilon = 1.0E-3;
+    param.past = 2;
+    param.delta = 1.0E-3;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessfOpt fun;    
@@ -730,7 +732,9 @@ namespace libgp {
   void GaussianProcess::optimize_hyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-2;
+    param.epsilon = 1.0e-3;
+    // param.past = 5;
+    //param.delta = 1.0E-6;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessOpt fun;    
