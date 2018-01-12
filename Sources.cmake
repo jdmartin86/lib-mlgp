@@ -17,9 +17,7 @@ SET(LIBGP_SRC
   src/gp_opt.cc
   src/gp_utils.cc
   src/sampleset.cc
-  src/rprop.cc
   src/input_dim_filter.cc
-  src/cg.cc
 )
 
 SET(LIBGP_INTERFACES 
@@ -41,7 +39,5 @@ SET(LIBGP_INTERFACES
   include/gp_opt.h
   include/gp_utils.h
   include/sampleset.h
-  include/rprop.h
   include/input_dim_filter.h
-  include/cg.h
 )
