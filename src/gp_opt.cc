@@ -11,7 +11,7 @@ namespace libgp
   double GaussianProcessOpt::value( const Eigen::VectorXd& x )
   {
     gp->covf().set_loghyper(x);
-    return gp->log_likelihood();
+    return gp->norm_log_likelihood();
   }
 
   void GaussianProcessOpt::gradient( const Eigen::VectorXd& x , 
@@ -31,7 +31,7 @@ namespace libgp
   double GaussianProcessfOpt::value( const Eigen::VectorXd& x )
   {
     gp->covf().set_loghyper(x);
-    return gp->log_flikelihood();
+    return gp->norm_log_flikelihood();
   }
 
   void GaussianProcessfOpt::gradient( const Eigen::VectorXd& x , 

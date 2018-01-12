@@ -124,11 +124,12 @@ namespace libgp {
     size_t get_input_dim();
 
     double log_flikelihood();
-    double log_hlikelihood();
     double log_likelihood();
-    
+
+    double norm_log_flikelihood();
+    double norm_log_likelihood();
+
     Eigen::VectorXd log_flikelihood_gradient();
-    Eigen::VectorXd log_hlikelihood_gradient();
     Eigen::VectorXd log_likelihood_gradient();
 
     /** Optimize hyperparams for f-process */
@@ -171,7 +172,7 @@ namespace libgp {
     void update_alpha();
     void update_alphaf();
 
-     void update_noise( );
+    void update_noise( );
 
     /** Compute covariance matrix and perform cholesky decomposition. */
     virtual void compute();
@@ -182,9 +183,9 @@ namespace libgp {
     
     bool alpha_needs_update;
     bool alphaf_needs_update;
-
     bool noise_needs_update;
 
+    double log_likelihood_baseline;
   private:
 
     /** No assignement */

@@ -411,37 +411,33 @@ namespace libgp {
     Eigen::VectorXd p_curr = covf().get_loghyper();
     Eigen::VectorXd z(sampleset->size());
 
-    for( size_t k = 0 ; k < 2 ; k++ )
+    for( size_t k = 0 ; k < 50 ; k++ )
     {
       // optimize f-process hyperparameters
       std::cout << "Optimizing f-process: ";    
-      optimize_fhyper( );
+      optimize_hyper( );
 
       // update h-process dataset by computing the sample variance
       for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
       {
-	f_i = Utils::bound( f( sampleset->x(i) ) , -1.0E6 , 1.0E6 );
-	v_i = Utils::bound( varf( sampleset->x(i) ) , 1.0E-6 , 1.0E6 );
+
+	// we sample the predictive, but limit the width of the dist
+	// at training points; it goes to zero in principle.
+	f_i = Utils::bound( mean( sampleset->x(i) ) , -1.0E6 , 1.0E6 );
+	v_i = Utils::bound( var( sampleset->x(i) ) , 1.0E-6 , 1.0E6 );
 	std::normal_distribution<double> N( f_i , sqrt(v_i) );
+	//std::cout << "Sampling from N("<<f_i<<","<<v_i<<")\n";
+
 	z_i = 0.0;
 	for( size_t j = 0 ; j < (size_t) num_var_samp ; j++ ) 
 	  z_i += pow( sampleset->y(i) - N(gen) , 2.0 );
 
-	// TEST HACK -- reenable soon
 	//std::cout << "z_i = " << z_i << std::endl;
-	//z_i = Utils::bound( z_i  , 0.0 , log( 1.0E6 ) );
-	//z(i) = log( z_i / ( num_var_samp - 1.0 ) );
-	//h->set_y( i , log( z_i / ( num_var_samp - 1.0 ) ) ); 
-
-	std::normal_distribution<double> C( 0.0 , 0.1 );
-	z(i) = pow(0.01 + 0.25*pow( 1.0-sin(2.5*sampleset->x(i)[0]) , 2.0 ) + C(gen),2);
-	z(i) = log(z(i));
+	z_i = Utils::bound( z_i  , 0.0 , 1.0E6 ) / ( num_var_samp - 1.0 );
+	z(i) = log( z_i );
 	h->set_y( i , z(i) ); 
 
       }
-      //      z = z.array() - z.mean();
-      //for( size_t i = 0 ; i < sampleset->size() ; ++i ) 
-      //	h->set_y( i , z(i) ); 
 
       // optimize h-process hyperparameters 
       std::cout << "Optimizing h-process\n";
@@ -478,7 +474,7 @@ namespace libgp {
     // add sample to h process
     if( h != NULL )
     {
-      h->sampleset->add( x , log(pow( y - f(x) , 2.0 )) );
+      h->sampleset->add( x , 1.0E-6 );
       noise_needs_update = true;
     }
   }
@@ -675,14 +671,27 @@ namespace libgp {
     return grad;
   }
 
+  double GaussianProcess::norm_log_flikelihood()
+  {
+    return log_flikelihood() / log_likelihood_baseline;
+  }
+
+  double GaussianProcess::norm_log_likelihood()
+  {
+    return log_likelihood() / log_likelihood_baseline;
+  }
+
   void GaussianProcess::optimize_fhyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-1;
+    param.epsilon = 1.0e-2;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessfOpt fun;    
     fun.parent( this );
+
+    // compute the baseline with which other evaluations are normalized
+    log_likelihood_baseline = log_flikelihood();
 
     Eigen::VectorXd x(covf().get_param_dim());
     x.setZero();
@@ -698,11 +707,14 @@ namespace libgp {
   void GaussianProcess::optimize_hhyper( )
   {
     LBFGSpp::LBFGSParam<double> param;
-    param.epsilon = 1.0e-2;
+    param.epsilon = 1.0e-3;
     param.max_iterations = 25;
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessfOpt fun;    
     fun.parent( h );
+
+    // compute the baseline with which other evaluations are normalized
+    h->log_likelihood_baseline = h->log_flikelihood();
 
     Eigen::VectorXd x(h->covf().get_param_dim());
     x.setZero();
@@ -723,6 +735,9 @@ namespace libgp {
     LBFGSpp::LBFGSSolver<double> solver(param);
     GaussianProcessOpt fun;    
     fun.parent( this );
+
+    // compute the baseline with which other evaluations are normalized
+    log_likelihood_baseline = log_likelihood();
 
     Eigen::VectorXd x(covf().get_param_dim());
     x.setZero();
