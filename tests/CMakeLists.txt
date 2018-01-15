@@ -17,7 +17,7 @@ LINK_DIRECTORIES (${CMAKE_CURRENT_BINARY_DIR}/gtest/src/googletest-build)
 
 # ----- Add sources -----
 SET(LIBMLGP_TESTS 
-  test-gp_regression_test.cpp
+  test-gp_regression.cpp
   test-hetero_gp_regression.cpp
   test-log_likelihood.cpp
   test-covariance_functions.cpp

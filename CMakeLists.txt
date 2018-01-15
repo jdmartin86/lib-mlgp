@@ -33,7 +33,6 @@ SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_MODULE_PATH})
 SET(CMAKE_CXX_FLAGS "-std=c++11 -O3 -fPIC -pthread")
 
 OPTION(BUILD_TESTS "Build tests" ON)
-OPTION(BUILD_EXAMPLES "Build examples" ON)
 
 FIND_PACKAGE(Eigen3 3.0.1 REQUIRED)
 IF( NOT( Eigen_FOUND ) )
@@ -73,11 +72,6 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ----- Add library target -----
 ADD_LIBRARY(mlgp ${LIBMLGP_SRC})
-
-# ----- Add example targets -----
-IF(BUILD_EXAMPLES)
-  ADD_SUBDIRECTORY(examples)
-ENDIF()
 
 # ----- Testing -----
 IF(BUILD_TESTS)
