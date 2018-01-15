@@ -21,7 +21,7 @@ make
 Pass the cmake flag BUILD_TESTS to build the tests
 
 ```
-./tests/test-gptd
+./tests/gptest
 ```
 ## Built With
 
