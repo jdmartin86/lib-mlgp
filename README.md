@@ -30,7 +30,7 @@ Pass the cmake flag BUILD_TESTS to build the tests
 
 ## Contributing
 
-No external contributions are allowed at this time. This will change after the first software release.
+Please report any bugs or issues to jmarti3@stevens.edu
 
 ## Authors
 
