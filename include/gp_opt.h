@@ -1,3 +1,6 @@
+// lib-mlgp - Library for Most-likely Hetroscedastic Gaussian Process Regression
+// Copyright (c) 2018, John Martin <jmarti3@stevens.edu>
+// All rights reserved.
 /** 
  * gp_opt.h
  *

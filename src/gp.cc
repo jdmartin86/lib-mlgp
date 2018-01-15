@@ -1,5 +1,5 @@
-// libgp - Gaussian process library for Machine Learning
-// Copyright (c) 2013, Manuel Blum <mblum@informatik.uni-freiburg.de>
+// lib-mlgp - Library for Most-likely Hetroscedastic Gaussian Process Regression
+// Copyright (c) 2018, John Martin <jmarti3@stevens.edu>
 // All rights reserved.
 
 #include "gp.h"
@@ -23,7 +23,7 @@ namespace libgp {
   /**
    * GaussianProcess
    * 
-   * Create an empty instance of a heteroscedastic Gaussian process.
+   * Create an empty instance of a Gaussian process.
    */
   GaussianProcess::GaussianProcess( )
   {

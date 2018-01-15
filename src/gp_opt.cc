@@ -1,3 +1,6 @@
+// lib-mlgp - Library for Most-likely Hetroscedastic Gaussian Process Regression
+// Copyright (c) 2018, John Martin <jmarti3@stevens.edu>
+// All rights reserved.
 /** 
  * gp_opt.cc
  *
@@ -6,6 +9,7 @@
  * John Martin Jr. ( jmarti3@stevens.edu )
  */
 #include "gp_opt.h"
+
 namespace libgp 
 {
   double GaussianProcessOpt::value( const Eigen::VectorXd& x )
