@@ -45,13 +45,34 @@ INCLUDE_DIRECTORIES(SYSTEM ${EIGEN3_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ----- Add sources -----
+SET(LIBMLGP_SRC
+  src/cov.cc
+  src/cov_factory.cc
+  src/cov_linear_ard.cc
+  src/cov_linear_one.cc
+  src/cov_matern3_iso.cc
+  src/cov_matern5_iso.cc
+  src/cov_noise.cc
+  src/cov_rq_iso.cc
+  src/cov_periodic_matern3_iso.cc
+  src/cov_periodic.cc
+  src/cov_se_ard.cc
+  src/cov_se_iso.cc
+  src/cov_sum.cc
+  src/cov_prod.cc
+  src/gp.cc
+  src/gp_opt.cc
+  src/gp_utils.cc
+  src/sampleset.cc
+  src/input_dim_filter.cc
+)
+
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lbfgspp)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lbfgspp/LBFGS)
-
-INCLUDE("Sources.cmake")
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ----- Add library target -----
-ADD_LIBRARY(mlgp ${LIBGP_SRC} ${LIBGP_INTERFACES})
+ADD_LIBRARY(mlgp ${LIBMLGP_SRC})
 
 # ----- Add example targets -----
 IF(BUILD_EXAMPLES)
