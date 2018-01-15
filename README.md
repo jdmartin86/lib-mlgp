@@ -1,4 +1,4 @@
-# lib-mlgp: Most Likely Heterosecastic Gaussian Process Library
+# lib-mlgp: Library for Most Likely Heterosecastic Gaussian Process Regression
 
 This library implements the Most Likely Heteroscedastic Gaussian Process algorithm, described in
 
